@@ -1,31 +1,31 @@
-﻿#include"Chat.h"
-#include "iostream"
-#include "string.h"
+﻿/*
+    Чат с регистрацией и хранением паролей взашифрованном виде
+*/
 
+#include "chat.h"
 
-void Chat::reg(char _login[LOGINLENGTH], char _pass[], int pass_length) {
-    // Ваш код
-    data[data_count++] = AuthData(_login, sha1(_pass, pass_length));
+Chat::Chat() {
+
+    ht = new HashTable();
 }
-bool Chat::login(char _login[LOGINLENGTH], char _pass[], int pass_length) {
-    // Ваш код
-    // Нужно вернуть true в случае успешного логина
-    int i = 0;
-    for (; i < data_count; i++) {
-        AuthData& ad = data[i];
-        if (!strcmp(ad.login, _login)) {
-            break;
-        }
-    }
-    if (i >= data_count) return false;
 
-    uint* digest = sha1(_pass, pass_length);
+Chat::~Chat() {
+    cout << "Chat deleted" << endl;
+    delete ht;
+}
 
-    bool cmpHashes = !memcmp(
-        data[i].pass_sha1_hash,
-        digest,
-        SHA1HASHLENGTHBYTES);
-    delete[] digest;
+// регистрация нового пользователя
+void Chat::reg(string& login, string& pass) {
+    if (!ht->find(login, pass)) ht->add(login, pass);
+    else cout << "This user already registered." << endl;
+}
+// вход в чат
+bool Chat::login(string& login, string& pass) {
 
-    return cmpHashes;
+    return ht->find(login, pass);
+}
+
+void Chat::show()
+{
+    ht->show();
 }

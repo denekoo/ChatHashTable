@@ -1,111 +1,172 @@
+﻿/*
+    Хеш таблица SHA-1
+    Индекс в массиве вычисляется на основе метода умножения и квадратичное пробирование
+*/
+
 #include "HashTable.h"
 
+HashTable::HashTable() {
+    _count = 0;
+    _mem_size = 8;
+    _array = new Pair[_mem_size]{ Pair() };
+}
 
-// ???????????? ???????????
-int HashTable::hash_func(UserName usr_name, int offset) {
-	// ????????? ??????
-	int sum = 0, i = 0;
-	for (; i < strlen(usr_name); i++) {
-		sum += usr_name[i];
-	}
-	// ???????????? ?????
-	return (sum % mem_size + offset * offset) % mem_size;
+HashTable::~HashTable() {
+    delete[] _array;
+}
+
+int HashTable::getCount() {
+    return this->_count;
 }
 
 
+// хеш-функция возвращает хеш(сумму всех char) userName
+int HashTable::hfunc(string& userName) {
+    int sum = 0;
+    for (int i = 0; i < userName.length(); i++) {
+        sum += userName[i];
+    }
+    return sum;
+}
 
-void HashTable::add(UserName usr_name, int usr_pass)
+// сравнение хешей SHA-1 160bit
+bool HashTable::hashCompare(uint* first, uint* second)
 {
-	int index = -1;
-	int i = 0;
-	for (; i < mem_size; ++i)
-	{
-		index = hash_func(usr_name, i);
-		if (array[index].status != enPairStatus::engaged)
-		{
-			break;
-		}
-	}
-	if (i >= mem_size)
-	{
-		resize();
-		add(usr_name, usr_pass);
-	}
-	else
-	{
-		array[index] = Pair(usr_name, usr_pass);
-		count++;
-	}
+    for (size_t i = 0; i < 5; i++)
+    {
+        if (first[i] != second[i]) return false;
+    }
+
+    return true;
 }
 
-int HashTable::find(UserName usr_name)
+// хеш-функция реализующая метод умножения и квадратичное пробирование(по ключу выдаёт индекс)
+int HashTable::hash_index(string& userName, int offset)
 {
-	// ??????? ????? ????????, ??????????????? ????? usr_name
-	// ???? ?????? ????? ???? ? ???????, ?? ??????? -1
-	// ??? ???
-
-	for (int i = 0; i < mem_size; ++i)
-	{
-		int index = hash_func(usr_name, i);
-		if (!strcmp(array[index].user_name, usr_name) && array[index].status == enPairStatus::engaged)
-		{
-			return array[index].user_pass;
-		}
-	}
-
-	return -1;
+    int val = hfunc(userName);
+    const double A = 0.7;
+    const int M = 10;
+    int buf = int(M * (A * (val + offset * offset) - int(A * (val + offset * offset))));
+    return buf;
 }
 
-void HashTable::del(UserName usr_name)
-{
-	// ??? ???
-	for (int i = 0; i < mem_size; ++i)
-	{
-		int index = hash_func(usr_name, i);
-		if (!strcmp(array[index].user_name, usr_name))
-		{
-			array[index].status = deleted;
-			count--;
-			break;
-		}
-	}
+// добавление элементов в новый массив после resize
+void HashTable::add(string& userName, uint* userPassHash) {
+    int index = -1, i = 0;
+    // берем пробы по всем i от 0 до размера массива
+    for (; i < _mem_size; i++) {
+        index = hash_index(userName, i);
+        if (_array[index]._status != enPairStatus::engaged) {
+            // найдена пустая ячейка, занимаем ее
+            break;
+        }
+    }
+
+    // если нет места, увеличиваем таблицу в два раза
+    if (index >= _mem_size) {
+        resize();
+        add(userName, userPassHash);
+        return;
+    }
+    // заполняем Pair
+    _array[index]._userName = userName;
+    _array[index]._userPassHash = new uint[5];
+    for (size_t i = 0; i < 5; i++)
+    {
+        _array[index]._userPassHash[i] = userPassHash[i];
+    }
+    _array[index]._status = enPairStatus::engaged;
+    _count++;
 }
 
+// добавление нового юзера
+void HashTable::add(string& userName, string& userPass) {
+    int index = -1, i = 0;
+    // берем пробы по всем i от 0 до размера массива
+    for (; i < _mem_size; i++) {
+        index = hash_index(userName, i);
+        if (_array[index]._status != enPairStatus::engaged) {
+            // найдена пустая ячейка, занимаем ее
+            break;
+        }
+    }
+    // если нет места, увеличиваем таблицу в два раза
+    if (index >= _mem_size) {
+        resize();
+        add(userName, userPass);
+        return;
+    }
+    // кладем в свободную ячейку пару
+    _array[index] = Pair(userName, userPass);
+    _count++;
+}
+
+// удаление юзера
+void HashTable::del(string& userName, string& userPass) {
+    for (int i = 0; i < _mem_size; i++) {
+        int index = hash_index(userName, i);
+        Pair& pair = _array[index];
+        if (pair._status == enPairStatus::engaged && hashCompare(pair._userPassHash, sha1(userPass.data(), userPass.size())) && pair._userName == userName) {
+            // найдено
+            pair._status = deleted;
+            --_count;
+            return;                                         // если нашёл, то помечаю удалённой
+        }
+        else {                                            // БЕЗ else БУДЕТ ИСКАТЬ ДО КОНЦА ВСЕХ ДАННЫХ!!!
+            if (pair._status == enPairStatus::free)          // если нашёл пустую то нет такого ключа. Завершаю
+                return;
+        }
+    }
+}
+
+bool HashTable::find(string& userName, string& userPass) {
+    for (int i = 0; i < _mem_size; i++) {
+        int index = hash_index(userName, i);
+        Pair& pair = _array[index];
+        if (pair._status == enPairStatus::engaged && hashCompare(pair._userPassHash, sha1(userPass.data(), userPass.size())) && pair._userName == userName) {
+            // найдено
+            return true;
+        }
+        else {                                            // БЕЗ else БУДЕТ ИСКАТЬ ДО КОНЦА ВСЕХ ДАННЫХ!!!
+            // не найдено
+            if (pair._status == enPairStatus::free) return false;
+        }
+    }
+    return false;
+}
+
+// увеличение в два раза массива хеш таблицы (при нехватке места)
 void HashTable::resize() {
+    Pair* save_ct = _array;                  // запоминаем старый массив
+    int oldSize = _mem_size;
 
-	Pair* pairArray = array;
-	int oldSize = mem_size;
-	mem_size *= 2;
-	array = new Pair[mem_size];
-	count = 0;
+    _mem_size *= 2;
+    _count = 0;
+    _array = new Pair[_mem_size]{ Pair() };
 
-	for (int i = 0; i < oldSize; ++i)
-	{
-		Pair& oldPair = pairArray[i];
-		if (pairArray[i].status == enPairStatus::engaged)
-		{
-			add(oldPair.user_name, oldPair.user_pass);
-		}
-	}
-	delete[] pairArray;
+    for (int i = 0; i < oldSize; i++) {      // цикл по элементам массива(объекты Pair)
+        // перебираем все старые цепочки
+        Pair& current = save_ct[i];
+        if (current._status == engaged)
+            add(current._userName, current._userPassHash);     // добавляем элементы
+    }
+
+    // чистим за собой
+    delete[] save_ct;
 }
 
+// вывод в терминал всех пользователей
+void HashTable::show() {
+    for (size_t i = 0; i < _mem_size; i++)
+    {
+        if (_array[i]._status == enPairStatus::engaged) {
+            cout << i << "\tUser name: " << _array[i]._userName << " \n\tUser hash: ";
 
-//// Zlobin`s code
-//void HashTable::resize() {
-//	Pair* save = array;
-//	int save_ms = mem_size;
-//
-//	mem_size *= 2;
-//	array = new Pair[mem_size];
-//	count = 0;
-//
-//	for (int i = 0; i < save_ms; i++) {
-//		Pair& old_pair = save[i];
-//		if (old_pair.status == enPairStatus::engaged) {
-//			add(old_pair.user_name, old_pair.user_pass);
-//		}
-//	}
-//
-//	delete[] save;
-//}
+            for (size_t j = 0; j < 5; j++) {
+                cout << _array[i]._userPassHash[j] << " ";
+            }
+            cout << endl;
+        }
+        else cout << i << " no user \n";
+    }
+}

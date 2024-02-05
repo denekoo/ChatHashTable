@@ -1,64 +1,75 @@
+﻿
+
 #pragma once
-#include <string.h>
-#define NAMELENGHT 10
-typedef char UserName[NAMELENGHT];
 
+#include <iostream>
+#include <string>
+#include "sha1.h"
+using namespace std;
 
-class HashTable
-{
+class HashTable {                   // хеш-таблица
 public:
-	HashTable();
-	~HashTable();
-	void add(UserName usr_name, int usr_pass);
-	void del(UserName usr_name);
-	int  find(UserName usr_name);
-	void resize();
+    HashTable();
+    ~HashTable();
+
+    void add(string& userName, string& userPass);
+    void del(string& userName, string& userPass);
+    bool find(string& userName, string& userPass);
+    void show();
+
+    int getCount();
 
 private:
+    enum enPairStatus {
+        free,               // свободен
+        engaged,            // занят
+        deleted             // удален
+    };
 
-	enum enPairStatus
-	{
-		free,
-		engaged,
-		deleted
-	};
-	struct Pair
-	{
-		Pair() : user_name(""), user_pass(-1), status(enPairStatus::free)
-		{   }
+    struct Pair {           // пара ключ-значение            
+        Pair() :             // конструктор по умолчанию
+            _userName("username"),
+            _userPassHash(nullptr),
+            _status(free)
+        {}
 
-		Pair(UserName usr_name, int usr_pass) :
-			user_pass(usr_pass), status(enPairStatus::free)
-		{
-			strcpy(user_name, usr_name);
-		}
+        Pair(string& userName, string& userPass) :
+            _status(engaged),
+            _userName(userName)
+        {
+            _userPassHash = sha1(userPass.data(), userPass.size());
+        }
 
-		Pair& operator = (const Pair& other)
-		{
-			user_pass = other.user_pass;
-			status = other.status;
-			strcpy(user_name, other.user_name);
-			return *this;
-		}
+        ~Pair()
+        {
+            if (_userPassHash != nullptr) delete[] _userPassHash;
+        }
 
-		UserName user_name;
-		int user_pass;
-		enPairStatus status;
-	};
+        Pair& operator = (const Pair& other) {      //  оператор присваивания
+            // need copy of array uint[5]
+            if (_userPassHash == nullptr) _userPassHash = new uint[5]{};
 
-	int hash_func(UserName usr_name, int offset);
+            for (size_t i = 0; i < 5; i++)
+            {
+                _userPassHash[i] = other._userPassHash[i];
+            }
+            _userName = other._userName;
+            _status = other._status;
+            return *this;
+        };
 
-	Pair* array;
-	int count;
-	int mem_size;
+        string _userName;       // имя (ключ)
+        uint* _userPassHash;    // хеш пароля (значение)            
+        enPairStatus _status;   // состояние ячейки
+    };
+
+    int hash_index(string& val, int offset);        // возвращает индекс в массиве
+    void resize();
+    void add(string& userName, uint* userPassHash); // добавление после resize
+    int hfunc(string& str);                         // возвращает хеш ключа
+    bool hashCompare(uint* first, uint* second);    // сравнение хешей
+
+    Pair* _array;
+    int _mem_size;
+    int _count;
 };
-HashTable::HashTable()
-{
-	count = 0;
-	int mem_size = 8;
-	array = new Pair[mem_size];
-}
-HashTable::	~HashTable()
-{
-	delete[] array;
-}

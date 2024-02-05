@@ -129,10 +129,10 @@
   <ItemGroup>
     <ClCompile Include="Chat.cpp" />
     <ClCompile Include="HashTable.cpp" />
+    <ClCompile Include="Main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Chat.h" />
-    <ClInclude Include="HashTable.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
